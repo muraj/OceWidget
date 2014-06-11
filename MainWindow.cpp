@@ -28,8 +28,8 @@ MainWindow::~MainWindow()
 void MainWindow::on_actionOpen_triggered() {
   QString filterChosen;
   QString filename = QFileDialog::getOpenFileName(this, tr("Open File"),
-      lastFolder, tr("BREP (*.brep *.rle);;"
-                     "STEP (*.step *.stp);;"
+      lastFolder, tr("STEP (*.step *.stp);;"
+                     "BREP (*.brep *.rle);;"
                      "IGES (*.iges *.igs)"), &filterChosen);
   filterChosen = filterChosen.split(" ")[0];  // Get the format type
   // TODO: Replace with I/O plugins...

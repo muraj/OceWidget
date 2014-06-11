@@ -86,8 +86,9 @@ void OceWidget::mousePressEvent(QMouseEvent* e) {
       mouseMode = MOUSE_ZOOM;
     setCursor(Qt::CrossCursor);
   }
-  else if(e->buttons() & Qt::LeftButton)
+  else if(e->buttons() & Qt::LeftButton) {
     mouseMode = MOUSE_PICK;
+  }
   mouseStart = e->pos();
 }
 
@@ -95,15 +96,13 @@ void OceWidget::mouseReleaseEvent(QMouseEvent* e) {
   QWidget::mouseReleaseEvent(e);
   setCursor(Qt::ArrowCursor);
   if(mouseMode == MOUSE_PICK) {
-    context->InitSelected();
-#if 0
     AIS_StatusOfPick status;
+    context->InitSelected();
     if(e->modifiers() & Qt::ShiftModifier)
       status = context->ShiftSelect();
     else
       status = context->Select();
-#endif
-    //if(status != AIS_SOP_NothingSelected) {
+    if(status != AIS_SOP_NothingSelected) {
       qDebug() << "Beginning to select" << context->NbSelected();
       while(context->MoreSelected()) {
         if(context->HasSelectedShape()) {
@@ -111,7 +110,8 @@ void OceWidget::mouseReleaseEvent(QMouseEvent* e) {
         }
         else {
           qDebug() << "Trying Interactive";
-          Handle(AIS_Shape) shape = Handle(AIS_Shape)::DownCast(context->SelectedInteractive());
+          Handle(AIS_Shape) shape =
+              Handle(AIS_Shape)::DownCast(context->SelectedInteractive());
           if(!shape.IsNull()) {
             qDebug() << "Selected Interactive";
           }
@@ -119,7 +119,7 @@ void OceWidget::mouseReleaseEvent(QMouseEvent* e) {
         context->NextSelected();
       }
       //emit selectionChanged();
-    //}
+    }
       qDebug() << "Done select";
   }
   mouseMode = MOUSE_NOTHING;
@@ -127,11 +127,6 @@ void OceWidget::mouseReleaseEvent(QMouseEvent* e) {
 
 void OceWidget::mouseMoveEvent(QMouseEvent* e) {
   QWidget::mouseMoveEvent(e);
-  if(!(e->buttons() & Qt::RightButton))
-  {
-    context->MoveTo(e->pos().x(), e->pos().y(), view);
-    return;
-  }
   switch(mouseMode) {
   case MOUSE_ROTATE:
     view->Rotation(e->pos().x(), e->pos().y());
@@ -146,7 +141,9 @@ void OceWidget::mouseMoveEvent(QMouseEvent* e) {
         mouseStart.y() - e->pos().y());
     mouseStart = e->pos();
     break;
-  default: break;
+  default:
+    context->MoveTo(e->pos().x(), e->pos().y(), view);
+    break;
   }
 }
 
@@ -161,6 +158,9 @@ void OceWidget::initialize() {
   view = viewer->CreateView();
   view->SetBackgroundColor(Quantity_NOC_BLACK);
   context = new AIS_InteractiveContext(viewer);
+  context->SetDisplayMode(AIS_Shaded);
+  context->OpenLocalContext();
+  context->ActivateStandardMode(TopAbs_SOLID);
   Aspect_Handle hwd = (Aspect_Handle)winId();
   Handle(Aspect_Window) window =
       new OceNativeWindow(viewer->Driver()->GetDisplayConnection(), hwd);
@@ -172,9 +172,6 @@ void OceWidget::initialize() {
     window->Map();
   view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER);
   view->Update();
-  context->CloseAllContexts();
-  context->OpenLocalContext();
-  context->ActivateStandardMode(TopAbs_SOLID);
   resizeNeeded = true;	// Resize when able.
 }
 
