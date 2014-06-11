@@ -97,13 +97,14 @@ void OceWidget::mouseReleaseEvent(QMouseEvent* e) {
   setCursor(Qt::ArrowCursor);
   if(mouseMode == MOUSE_PICK) {
     AIS_StatusOfPick status;
-    context->InitSelected();
     if(e->modifiers() & Qt::ShiftModifier)
       status = context->ShiftSelect();
     else
       status = context->Select();
     if(status != AIS_SOP_NothingSelected) {
+#if 0
       qDebug() << "Beginning to select" << context->NbSelected();
+      context->InitSelected();
       while(context->MoreSelected()) {
         if(context->HasSelectedShape()) {
 	  qDebug() << "Selected shape";
@@ -118,9 +119,10 @@ void OceWidget::mouseReleaseEvent(QMouseEvent* e) {
         }
         context->NextSelected();
       }
-      //emit selectionChanged();
-    }
       qDebug() << "Done select";
+#endif
+      emit selectionChanged();
+    }
   }
   mouseMode = MOUSE_NOTHING;
 }
