@@ -7,12 +7,16 @@
 
 #include <V3d_Viewer.hxx>
 #include <AIS_InteractiveContext.hxx>
+#include <AIS_Shape.hxx>
 #include <OpenGl_GraphicDriver.hxx>
 #include <V3d_View.hxx>
+
 #ifdef WIN32
 #include <WNT_Window.hxx>
+typedef WNT_Window OceNativeWindow;
 #else
 #include <Xw_Window.hxx>
+typedef Xw_Window OceNativeWindow;
 #endif
 
 static Handle(V3d_Viewer) createViewer(
@@ -48,9 +52,9 @@ QPaintEngine* OceWidget::paintEngine() const {
 }
 
 void OceWidget::paintEvent(QPaintEvent*) {
-  if(window.IsNull() && winId())
+  if(view.IsNull() && winId())
     initialize();  // Initialize the view
-  if(!window.IsNull())
+  if(!view.IsNull())
     paint();	   // Paint the view
 }
 
@@ -71,8 +75,7 @@ void OceWidget::wheelEvent(QWheelEvent* event) {
 
 void OceWidget::mousePressEvent(QMouseEvent* e) {
   QWidget::mousePressEvent(e);
-  qDebug() << "MousePress:" << e->buttons() << e->modifiers();
-  if(e->buttons() & Qt::LeftButton) {
+  if(e->buttons() & Qt::RightButton) {
     if(e->modifiers() == Qt::NoModifier) { // rotate
       mouseMode = MOUSE_ROTATE;
       view->StartRotation(e->pos().x(), e->pos().y());
@@ -81,26 +84,56 @@ void OceWidget::mousePressEvent(QMouseEvent* e) {
       mouseMode = MOUSE_PAN;
     else if(e->modifiers() & Qt::ControlModifier) // zoom
       mouseMode = MOUSE_ZOOM;
-    mouseStart = e->pos();
+    setCursor(Qt::CrossCursor);
   }
+  else if(e->buttons() & Qt::LeftButton)
+    mouseMode = MOUSE_PICK;
+  mouseStart = e->pos();
 }
 
 void OceWidget::mouseReleaseEvent(QMouseEvent* e) {
   QWidget::mouseReleaseEvent(e);
+  setCursor(Qt::ArrowCursor);
+  if(mouseMode == MOUSE_PICK) {
+    context->InitSelected();
+#if 0
+    AIS_StatusOfPick status;
+    if(e->modifiers() & Qt::ShiftModifier)
+      status = context->ShiftSelect();
+    else
+      status = context->Select();
+#endif
+    //if(status != AIS_SOP_NothingSelected) {
+      qDebug() << "Beginning to select" << context->NbSelected();
+      while(context->MoreSelected()) {
+        if(context->HasSelectedShape()) {
+	  qDebug() << "Selected shape";
+        }
+        else {
+          qDebug() << "Trying Interactive";
+          Handle(AIS_Shape) shape = Handle(AIS_Shape)::DownCast(context->SelectedInteractive());
+          if(!shape.IsNull()) {
+            qDebug() << "Selected Interactive";
+          }
+        }
+        context->NextSelected();
+      }
+      //emit selectionChanged();
+    //}
+      qDebug() << "Done select";
+  }
   mouseMode = MOUSE_NOTHING;
 }
 
 void OceWidget::mouseMoveEvent(QMouseEvent* e) {
   QWidget::mouseMoveEvent(e);
-  qDebug() << "MouseMove:" << e->buttons() << mouseMode;
-  if(e->buttons() == Qt::NoButton)
+  if(!(e->buttons() & Qt::RightButton))
   {
     context->MoveTo(e->pos().x(), e->pos().y(), view);
     return;
   }
   switch(mouseMode) {
   case MOUSE_ROTATE:
-    qDebug() << "Rotating...";
     view->Rotation(e->pos().x(), e->pos().y());
     break;
   case MOUSE_ZOOM:
@@ -110,7 +143,7 @@ void OceWidget::mouseMoveEvent(QMouseEvent* e) {
     break;
   case MOUSE_PAN:
     view->Pan(e->pos().x() - mouseStart.x(),
-        e->pos().y() - mouseStart.y());
+        mouseStart.y() - e->pos().y());
     mouseStart = e->pos();
     break;
   default: break;
@@ -129,20 +162,28 @@ void OceWidget::initialize() {
   view->SetBackgroundColor(Quantity_NOC_BLACK);
   context = new AIS_InteractiveContext(viewer);
   Aspect_Handle hwd = (Aspect_Handle)winId();
-  window = new OceNativeWindow(viewer->Driver()->GetDisplayConnection(), hwd);
-#if WIN32
+  Handle(Aspect_Window) window =
+      new OceNativeWindow(viewer->Driver()->GetDisplayConnection(), hwd);
+#ifdef WIN32
   window->SetFlags(WDF_NOERASEBKGRND);
 #endif
   view->SetWindow(window);
   if(!window->IsMapped())
     window->Map();
+  view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER);
+  view->Update();
+  context->CloseAllContexts();
+  context->OpenLocalContext();
+  context->ActivateStandardMode(TopAbs_SOLID);
   resizeNeeded = true;	// Resize when able.
 }
 
 void OceWidget::paint() {
   if(!this->view.IsNull()) {
-    if(resizeNeeded)
+    if(resizeNeeded) {
+      this->view->Window()->DoResize();
       this->view->MustBeResized();
+    }
     else
       this->view->Redraw();
   }
